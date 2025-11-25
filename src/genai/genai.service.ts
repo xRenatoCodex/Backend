@@ -27,4 +27,6 @@ export class GenaiService {
         const response = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${this.configService.get("MODEL_ID")}:${this.configService.get("GENERATE_CONTENT_API")}?key=${this.configService.get("GEMINI_API_KEY")}`, requestBody)
         return response.data
     }
+
+    
 }
