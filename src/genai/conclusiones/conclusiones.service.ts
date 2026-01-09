@@ -1,261 +1,191 @@
 import { Injectable } from '@nestjs/common';
 import ConclusionFirstFileDto from './dtos/conclusion_first_file.dto';
-import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
-import { TEMPLATES } from './templates'
 import { ConclusionNoFirstDto } from './dtos/conclusion_no_first.dto';
+import { important_parts_hallazgos } from './important_parts_hallazgos';
+import { generateText } from 'ai';
+import { LanguageModelV2 } from '@ai-sdk/provider';
+import { createVertex, vertex } from '@ai-sdk/google-vertex';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 
 @Injectable()
 export class ConclusionesService {
+    private vertex_client: LanguageModelV2
 
     constructor(
         private configService: ConfigService
     ) {
-
-        console.log(configService)
+        const google = createGoogleGenerativeAI({
+            apiKey: this.configService.get("GEMINI_API_KEY")
+        })
+        this.vertex_client = createVertex({ project: 'pe-fesa-ti-data-explore-dev', location: 'us-central1' })('gemini-2.5-pro')
     }
 
 
     async conclusion_first_file(conclusiones_first_file_dto: ConclusionFirstFileDto) {
-        console.log({ conclusiones_first_file_dto })
 
-        const system_promt = `Eres un **Especialista Sénior en Reparaciones Mecánicas de Maquinaria Pesada**, con experiencia probada en la evaluación, diagnóstico y redacción formal de reportes de componentes críticos durante la etapa de desarmado.
+        //const list_important_parts = important_parts[conclusiones_first_file_dto.smcs] || [];
+        //console.log({ list_important_parts })
 
-### 🎯 Rol y Objetivo
-Tu función principal es **mejorar y formalizar la redacción de las conclusiones** de un proceso de evaluación (desarmado), transformando los hallazgos brutos y la conclusión inicial del técnico en un documento final que sea **técnico, preciso, objetivo y formal**.
+        const system_promt = `
+**Rol:** Eres un Especialista Sénior en Reparaciones Mecánicas de Maquinaria Pesada. Tu rol es formalizar los reportes de desarmado, transformando datos brutos de evaluación en un resumen ejecutivo conciso y una lista de hallazgos técnica, precisa y objetiva. Manejarás contextos de Diagnóstico por Falla y Mantenimiento Preventivo.
 
-* **Contextos de Reparación:** Debes manejar dos contextos principales:
-    1.  **Diagnóstico por Falla:** Evaluación de un componente por daño o mal funcionamiento.
-    2.  **Mantenimiento Preventivo (Cambio de Metales):** Evaluación y redacción formal de componentes desarmados bajo un programa preventivo (e.g., reemplazo programado de cojinetes de cigüeñal o bancada), donde la conclusión se enfoca en la verificación del estado de desgaste y tolerancias de las piezas retiradas, y la validación de la condición del muñón/asiento.
+  
 
-### ⚙️ Estándares de Respuesta y Formato
-1.  **Tono y Lenguaje:** Debes responder de manera **formal y educada**, utilizando **terminología técnica** específica del sector de maquinaria pesada.
-2.  **Estructura y Formato:**
-    * El output debe estar **obligatoriamente en formato Markdown** y debe seguir **estrictamente** la plantilla de estructura proporcionada por el usuario.
-    * **Solo se permite el uso de los siguientes elementos de Markdown:**
-        * **Negrita** (\`**...**\`)
-        * *Cursiva* (\`*...*\` o \`_...\`_)
-        * Listas con viñetas (BouletList, usando \`*\` o \`-\`)
-        * Listas numéricas (NumericList, usando \`1.\`, \`2.\`, etc.)
-        * Tablas (para la sección de componentes evaluados, siguiendo la plantilla).
-        * Títulos (para estructuración, usando \`##\` y \`###\`).
-    * **Nota:** El agente debe simular el efecto de **subrayado** si es necesario, pero manteniendo la compatibilidad con el formato Markdown estándar (usando Negrita o Títulos para énfasis).
+**Regla de Ejecución Obligatoria**
 
-3.  **Contenido Técnico Detallado:**
-    * **Hallazgos:** Detalla todos los pasos y condiciones encontrados durante el desarmado. Describe la **naturaleza de la falla o el desgaste** (e.g., *fricción excesiva, fisuración por fatiga, contaminación por abrasivos, rayado circunferencial, holgura fuera de especificación*).
-    * **Piezas:** Categoriza claramente cada número de parte evaluado con su condición final:
-        * **Recuperar:** Componentes que requieren un proceso de reparación o rectificación para volver a especificación.
-        * **Reutilizar:** Componentes que están dentro de las tolerancias de servicio y pueden ser instalados nuevamente.
-        * **Retirar/Fuera de Servicio:** Componentes que no son aptos para recuperación y deben ser reemplazados (o retirados por haber cumplido su vida útil, como en el programa "Cambio de Metales").
+Debes redactar una conclusión formal basándote únicamente en los 'HALLAZGOS' y 'DATOS DE LA REPARACIÓN' suministrados. La existencia o ausencia de una conclusión inicial del técnico es irrelevante; tu función es generar la conclusión formal.
 
-### 🛑 Restricciones Críticas (No Alucinación)
-1.  **Estricta Dependencia del Dato:** El agente debe ser **estrictamente data-driven**. Las conclusiones y recomendaciones deben basarse **únicamente** en los 'HALLAZGOS' y 'DATOS DE LA REPARACIÓN' proporcionados en el input.
-2.  **Prohibición de Alucinación:** Queda **absolutamente prohibido inventar o inferir daños**, condiciones, pasos, o cualquier otra información no verificable y no presente explícitamente en los datos de entrada (HALLAZGOS y DATOS DE LA REPARACIÓN).
-3.  **Confidencialidad:** **Absolutamente prohibido** incluir o inferir información sensible, confidencial, nombres de clientes, montos, costos o cualquier dato estratégico.
+**Estándares de Respuesta:**
+  
+- Tono: Formal, educado y con terminología técnica de maquinaria pesada.
+- Formato: Estrictamente Markdown. Usar solo Negrita, Cursiva y Listas (* o -), Nunca usar **TITULOS [#]**
+
+**Contenido:**  
+
+- **Conclusión**
+
+Un único párrafo formal y muy conciso que resuma el dictamen y las implicaciones de la intervención, evitando detalles de números de parte o disposición final.
+
+- **Hallazgos** [Debe aparecer solo si hay mas almenos 1 hallazgo encontrado]
+
+Una lista detallada que categorice cada componente evaluado con su disposición final estricta: Fuera de Servicio, Recuperar, Reutilizar, o Faltante.
+
+ - **Formato Hallazgo**: 
+	 - **[Descripcion] ([Part Number])**: [Detalle observacion] - Resultado : [Fuera de Servicio, Recuperar, Reutilizar, o Faltante]
+	 - Ejemplo: **ROD AS (4339309) :** Presenta desgaste en su estructura - Resultado: Recuperar
+
+
+**🛑 Restricciones Críticas**
+
+- Estricta Dependencia del Dato: Las conclusiones se basarán únicamente
+
+en los 'HALLAZGOS' y 'DATOS DE LA REPARACIÓN' proporcionados.
+ - Componentes a mencionar en Hallazgos: Debes revisar esta lista de componentes críticos y filtrar los hallazgos cuyos componentes esten dentro de este listado
+
+ ${JSON.stringify(important_parts_hallazgos)}
+
+ - Prohibición de Alucinación: Absolutamente prohibido inventar o
+
+inferir daños, condiciones, o información no explícitamente detallada
+
+en el input.
+
+- Confidencialidad: Prohibido incluir nombres de clientes, costos o
+
+datos estratégicos.
+
+Solo responder con la data solicitada, sin presentaciones, saludos, o cualquier informacion sin valor para el taller
 `;
-        const requestBody = {
-            contents: [
-                {
-                    // El primer contenido debe ser el mensaje del usuario
-                    role: 'user',
-                    parts: [{
-                        text: `### 📋 Datos de la Reparación
+        const user_promt = `Por favor, genera el reporte técnico basado en los siguientes datos de entrada:
+
+### 📋 Datos de la Reparación
 * **TIPO DE REPARACIÓN:** ${conclusiones_first_file_dto.tipo_reparacion}
 * **COMPONENTE PRINCIPAL:** ${conclusiones_first_file_dto.component_main}
-* **HORAS COMPONENTE:** ${conclusiones_first_file_dto.component_hrs}
+* **HOROMETRO:** ${conclusiones_first_file_dto.component_hrs}
 * **MODELO MAQUINA/EQUIPO:** ${conclusiones_first_file_dto.modelo_maquina}
-* **MODELO MOTOR (si aplica):** ${conclusiones_first_file_dto.modelo_motor}
+* **MODELO MOTOR:** ${conclusiones_first_file_dto.modelo_motor || "N/A"}
 
-### 💡 Hallazgos Iniciales del Técnico (PH)
+### 💡 Hallazgos Iniciales (Raw Data)
 ${JSON.stringify(conclusiones_first_file_dto.hallazgos || [], null, 2)}
 
-### 🖋️ Conclusión Inicial del Técnico (Si existe)
-${conclusiones_first_file_dto.user_conclusion.toString()}
+### Notas de SAP de la Reparación
+${JSON.stringify(conclusiones_first_file_dto.notas || [], null, 2)}
 
-`  }],
-                },
-            ],
-            systemInstruction: {
-                parts: [{ text: system_promt.toString() }]
-            },
-            generationConfig: {
-                // Otras configuraciones de generación
-                responseMimeType: "text/plain",
-                temperature: 0
-            },
-        };
+${conclusiones_first_file_dto.user_conclusion && conclusiones_first_file_dto.user_conclusion.toString().length > 5 ? " ### 📝 Notas del Técnico (Contexto Adicional)\n" + conclusiones_first_file_dto.user_conclusion.toString() : "\n\n(Usa estas notas para contextualizar, pero redacta la conclusión final con un tono más formal).\ : ### 📝 Notas del Técnico\n(No se proporcionaron notas iniciales. Genera la conclusión basándote EXCLUSIVAMENTE en el análisis de los Hallazgos y el Tipo de Reparación arriba descritos)."}
+
+                    `;
         try {
+            const { text } = await generateText({
+                model: this.vertex_client,
+                temperature: 0.2,
+                prompt: [
+                    {
+                        role: 'system',
+                        content: system_promt.toString()
+                    },
+                    {
+                        role: 'user',
+                        content: user_promt
 
-            const response = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${this.configService.get("MODEL_ID")}:${this.configService.get("GENERATE_CONTENT_API")}?key=${this.configService.get("GEMINI_API_KEY")}`, requestBody)
-            return response.data
+                    }
+                ]
+            })
+            return text
         }
         catch (e) {
-            console.log(JSON.stringify(e))
-            return null
+            console.log(e)
+            return ""
         }
     }
 
     async conclusion_no_first_file(conclusiones_no_first_dto: ConclusionNoFirstDto) {
 
-        console.log({ conclusiones_no_first_dto })
-        const system_promt_withTemplate = `Eres un **Especialista Sénior en Reparaciones Mecánicas de Maquinaria Pesada**, con experiencia probada en la evaluación, diagnóstico y redacción formal de reportes de componentes críticos durante la etapa de desarmado.
+        const system_promt = `
+**Rol:** Eres un Especialista Sénior en Reparaciones Mecánicas de Maquinaria Pesada. Tu rol es formalizar los reportes de desarmado, transformando datos brutos de evaluación en un resumen ejecutivo conciso y una lista de hallazgos técnica, precisa y objetiva. Manejarás contextos de Diagnóstico por Falla y Mantenimiento Preventivo.
 
-### 🎯 Rol y Objetivo
-Tu función principal es **mejorar y formalizar la redacción de las conclusiones** de un proceso de evaluación (desarmado), transformando los hallazgos brutos y la conclusión inicial del técnico en un documento final que sea **técnico, preciso, objetivo y formal**.
+**Regla de Ejecución Obligatoria**
 
-* **Contextos de Reparación:** Debes manejar dos contextos principales:
-    1.  **Diagnóstico por Falla:** Evaluación de un componente por daño o mal funcionamiento.
-    2.  **Mantenimiento Preventivo (Cambio de Metales):** Evaluación y redacción formal de componentes desarmados bajo un programa preventivo (e.g., reemplazo programado de cojinetes de cigüeñal o bancada), donde la conclusión se enfoca en la verificación del estado de desgaste y tolerancias de las piezas retiradas, y la validación de la condición del muñón/asiento.
+Debes redactar una conclusión formal basándote únicamente en los 'HALLAZGOS' y 'DATOS DE LA REPARACIÓN' suministrados. Tu función es generar la conclusión formal en **un solo párrafo**
 
-### ⚙️ Estándares de Respuesta y Formato
-1.  **Tono y Lenguaje:** Debes responder de manera **formal y educada**, utilizando **terminología técnica** específica del sector de maquinaria pesada.
-2.  **Estructura y Formato:**
-    * El output debe estar **obligatoriamente en formato Markdown** y debe seguir **estrictamente** la plantilla de estructura proporcionada por el usuario.
-    * **Solo se permite el uso de los siguientes elementos de Markdown:**
-        * **Negrita** (\`**...**\`)
-        * *Cursiva* (\`*...*\` o \`_...\`_)
-        * Listas con viñetas (BouletList, usando \`*\` o \`-\`)
-        * Listas numéricas (NumericList, usando \`1.\`, \`2.\`, etc.)
-        * Tablas (para la sección de componentes evaluados, siguiendo la plantilla).
-        * Títulos (para estructuración, usando \`##\` y \`###\`).
-    * **Nota:** El agente debe simular el efecto de **subrayado** si es necesario, pero manteniendo la compatibilidad con el formato Markdown estándar (usando Negrita o Títulos para énfasis).
+  
 
-3.  **Contenido Técnico Detallado:**
-    * **Hallazgos:** Detalla todos los pasos y condiciones encontrados durante el desarmado. Describe la **naturaleza de la falla o el desgaste** (e.g., *fricción excesiva, fisuración por fatiga, contaminación por abrasivos, rayado circunferencial, holgura fuera de especificación*).
-    * **Piezas:** Categoriza claramente cada número de parte evaluado con su condición final:
-        * **Recuperar:** Componentes que requieren un proceso de reparación o rectificación para volver a especificación.
-        * **Reutilizar:** Componentes que están dentro de las tolerancias de servicio y pueden ser instalados nuevamente.
-        * **Retirar/Fuera de Servicio:** Componentes que no son aptos para recuperación y deben ser reemplazados (o retirados por haber cumplido su vida útil, como en el programa "Cambio de Metales").
+**Estándares de Respuesta:**
 
-### 🛑 Restricciones Críticas (No Alucinación)
-1.  **Estricta Dependencia del Dato:** El agente debe ser **estrictamente data-driven**. Las conclusiones y recomendaciones deben basarse **únicamente** en los 'HALLAZGOS' y 'DATOS DE LA REPARACIÓN' proporcionados en el input.
-2.  **Prohibición de Alucinación:** Queda **absolutamente prohibido inventar o inferir daños**, condiciones, pasos, o cualquier otra información no verificable y no presente explícitamente en los datos de entrada (HALLAZGOS y DATOS DE LA REPARACIÓN).
-3.  **Confidencialidad:** **Absolutamente prohibido** incluir o inferir información sensible, confidencial, nombres de clientes, montos, costos o cualquier dato estratégico.
-`;
-        const system_promt_withoutTemplate = `Eres un asistente técnico especializado en la redacción de conclusiones y/o recomendaciones sobre sistemas, componentes y números de parte de maquinaria pesada en proceso de reparación. Como input recibirás la conclusión redactada por el técnico (si existe), el Componente Main, el Subcomponente y los hallazgos (PH) de cada número de parte evaluado, cuyo resultado puede ser: Fuera de Servicio, Reutilizar o Recuperar.
+- Tono: Formal, educado y con terminología técnica de maquinaria pesada.
 
-Debes reescribir o mejorar la conclusión basándote en estos datos, manteniendo un lenguaje técnico, preciso y profesional. Evita incluir información sensible, confidencial o relacionada a clientes, montos o datos estratégicos. Las conclusiones deben describir los hallazgos de forma objetiva y técnica, haciendo referencia a condiciones reales como desgaste, fisuras, fugas, temperaturas, presiones, holguras o vibraciones, según corresponda.
+- Formato: Estrictamente Markdown. Usar solo Negrita, Cursiva y Listas (* o -), Nunca usar **TITULOS [#]**
 
-Output esperado (en párrafos):
+**Contenido:**
 
-“Durante la inspección se verificó que las siguientes piezas se encuentran en buenas condiciones y cumplen con los criterios de servicio, por lo que serán reutilizadas y/o recuperadas:
+Un único párrafo formal y muy conciso que resuma el dictamen y las implicaciones de la intervención, o disposición final.
+  
 
-• pieza 1
+**🛑 Restricciones Críticas**
 
-• pieza 2
+- Estricta Dependencia del Dato: Las conclusiones se basarán únicamente
+  
+en los 'HALLAZGOS' , 'DATOS DE LA REPARACIÓN' y 'CONCLUSIONES DEL USUARIO' proporcionados.
 
+- Prohibición de Alucinación: Absolutamente prohibido inventar o inferir daños, condiciones, o información no explícitamente detallada en el input.
 
+- Confidencialidad: Prohibido incluir nombres de clientes, costos o datos estratégicos.
 
-Sin embargo, las siguientes piezas presentan condiciones fuera de servicio debido a daños como [motivo técnico], por lo que requieren reemplazo:
+Solo responder con la data solicitada, sin presentaciones, saludos, o cualquier informacion sin valor para el taller`;
+        const user_promt = `Por favor, genera el reporte técnico basado en los siguientes datos de entrada:
 
-
-• pieza 1: motivo
-
-• pieza 2: motivo.
-
-Datos de la Reparacion:{
-        TIPO DE REPARACIÓN = ${conclusiones_no_first_dto.tipo_reparacion},
-        COMPONENTE MAIN = ${conclusiones_no_first_dto.component_main},
-        MODELO MAQUINA= ${conclusiones_no_first_dto.modelo_maquina},
-        MODELO MOTOR=${conclusiones_no_first_dto.modelo_motor},
-        SUB COMPONENTE = ${conclusiones_no_first_dto.component_sub},
-        HALLAZGOS = ${JSON.stringify(conclusiones_no_first_dto.hallazgos || [], null, 2)}
- }
-`
-
-        const plantilla = TEMPLATES.filter(e => e.smcs.toLocaleString() == conclusiones_no_first_dto.smcs)[0]
-
-        if (plantilla) {
-            const requestBody = {
-                contents: [
-                    // Role 'user' para el contenido del usuario
-                    {
-                        role: 'user',
-                        // parts: [{ text: `conclusion a mejorar : ${conclusiones_no_first_dto.user_conclusion.toString()}` }],
-                        parts: [{
-                            text: `### 📋 Datos de la Reparación
+### 📋 Datos de la Reparación
 * **TIPO DE REPARACIÓN:** ${conclusiones_no_first_dto.tipo_reparacion}
 * **COMPONENTE PRINCIPAL:** ${conclusiones_no_first_dto.component_main}
-* **SUBCOMPONENTE:** ${conclusiones_no_first_dto.component_sub}
 * **MODELO MAQUINA/EQUIPO:** ${conclusiones_no_first_dto.modelo_maquina}
-* **MODELO MOTOR (si aplica):** ${conclusiones_no_first_dto.modelo_motor}
+* **MODELO MOTOR:** ${conclusiones_no_first_dto.modelo_motor || "N/A"}
 
-### 💡 Hallazgos Iniciales del Técnico (PH)
+### 💡 Hallazgos Iniciales (Raw Data)
 ${JSON.stringify(conclusiones_no_first_dto.hallazgos || [], null, 2)}
 
-### 🖋️ Conclusión Inicial del Técnico (Si existe)
-${conclusiones_no_first_dto.user_conclusion.toString()}
+### Notas de SAP de la Reparación
+${JSON.stringify(conclusiones_no_first_dto.notas || [], null, 2)}
 
-` }],
-                    },
+${conclusiones_no_first_dto.user_conclusion && conclusiones_no_first_dto.user_conclusion.toString().length > 5 ? " ### 📝 Notas del Técnico (Contexto Adicional)\n" + conclusiones_no_first_dto.user_conclusion.toString() : "\n\n(Usa estas notas para contextualizar, pero redacta la conclusión final con un tono más formal).\ : ### 📝 Notas del Técnico\n(No se proporcionaron notas iniciales. Genera la conclusión basándote EXCLUSIVAMENTE en el análisis de los Hallazgos y el Tipo de Reparación arriba descritos)."}
 
-                ],
-                systemInstruction: {
-                    parts: [{ text: system_promt_withTemplate }]
-                },
-                generationConfig: {
-                    // Otras configuraciones de generación
-                    responseMimeType: "text/plain",
-                    temperature: 0
-                },
-            };
-
-            try {
-
-                const response = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${this.configService.get("MODEL_ID")}:${this.configService.get("GENERATE_CONTENT_API")}?key=${this.configService.get("GEMINI_API_KEY")}`, requestBody)
-                return response.data
-            }
-            catch (e) {
-                console.log(JSON.stringify(e))
-                return null
-            }
+                    `
+        try {
+            const { text } = await generateText({
+                model: this.vertex_client,
+                prompt: [{
+                    role: 'system',
+                    content: system_promt.toString()
+                }, {
+                    role: 'user',
+                    content: user_promt
+                },]
+            })
+            return text
         }
-        else {
-            const requestBody = {
-                contents: [
-                    // Role 'user' para el contenido del usuario
-                    {
-                        role: 'user',
-                        // parts: [{ text: `conclusion a mejorar : ${conclusiones_no_first_dto.user_conclusion.toString()}` }],
-                        parts: [{
-                            text: `### 📋 Datos de la Reparación
-* **TIPO DE REPARACIÓN:** ${conclusiones_no_first_dto.tipo_reparacion}
-* **COMPONENTE PRINCIPAL:** ${conclusiones_no_first_dto.component_main}
-* **SUBCOMPONENTE:** ${conclusiones_no_first_dto.component_sub}
-* **MODELO MAQUINA/EQUIPO:** ${conclusiones_no_first_dto.modelo_maquina}
-* **MODELO MOTOR (si aplica):** ${conclusiones_no_first_dto.modelo_motor}
-
-### 💡 Hallazgos Iniciales del Técnico (PH)
-${JSON.stringify(conclusiones_no_first_dto.hallazgos || [], null, 2)}
-
-### 🖋️ Conclusión Inicial del Técnico (Si existe)
-${conclusiones_no_first_dto.user_conclusion.toString()}
-
-` }],
-                    },
-
-                ],
-                systemInstruction: {
-                    parts: [{ text: system_promt_withTemplate }]
-                },
-                generationConfig: {
-                    // Otras configuraciones de generación
-                    responseMimeType: "text/plain",
-                    temperature: 0
-                },
-            };
-
-            try {
-
-                const response = await axios.post(`https://generativelanguage.googleapis.com/v1beta/models/${this.configService.get("MODEL_ID")}:${this.configService.get("GENERATE_CONTENT_API")}?key=${this.configService.get("GEMINI_API_KEY")}`, requestBody)
-                return response.data
-            }
-            catch (e) {
-                console.log(JSON.stringify(e))
-                return null
-            }
+        catch (e) {
+            console.log(e)
+            return ""
         }
-
     }
 
 

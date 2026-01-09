@@ -4,37 +4,58 @@ import { IsArray, IsNumber, IsOptional, IsString, ValidateNested } from "class-v
 export class Hallazgos {
 
     @IsString()
-    comentarioInterno: string
+    @IsOptional()
+    comentarioExterno?: string
+
+    @IsString()
+    @IsOptional()
+    evaluacion_resultado?: string
+
+    @IsString()
+    @IsOptional()
+    resultado_comentarioExterno?: string
+
     @IsNumber()
+    @IsOptional()
     cantidad: number
 
-    @IsString() dondeSeEncontro: string
-    @IsString() queSeEncontro: string
-    @IsString() queSeVaRealizar: string
-    @IsString() queSeVaRealizar_main: string
-    @IsString() numeroParte: string
+    @IsString() @IsOptional() dondeSeEncontro?: string
+    @IsString() @IsOptional() queSeEncontro?: string
+    @IsString() @IsOptional() queSeVaRealizar?: string
+    @IsString() @IsOptional() queSeVaRealizar_main?: string
+    @IsString() @IsOptional() numeroParte?: string
 
 }
 
 export default class ConclusionFirstFileDto {
 
-    @IsString() component_hrs: string
-    @IsString() component_main: string
-    @IsString() tipo_reparacion: string
+    @IsOptional() @IsString() component_hrs?: string
+    @IsOptional() @IsString() component_main?: string
+    @IsOptional() @IsString() tipo_reparacion?: string
 
-    @IsString()
     @IsOptional()
-    modelo_motor: string
+    @IsString({ each: true })
+    notas?: string[]
 
-    @IsString()
     @IsOptional()
-    modelo_maquina: string
+    @IsString()
+    modelo_motor?: string
 
-    @IsArray() 
-    @ValidateNested({ each: true }) 
-    @Type(() => Hallazgos) 
-    hallazgos: Hallazgos[] 
+    @IsOptional()
+    @IsString()
+    modelo_maquina?: string
 
-    @IsString() user_conclusion: string
+    @IsOptional()
+    @IsString()
+    smcs?: string
+
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => Hallazgos)
+    hallazgos: Hallazgos[]
+
+    @IsOptional()
+    @IsString()
+    user_conclusion?: string
 
 }

@@ -8,7 +8,10 @@ export class GenaiService {
 
     constructor(
         private configService: ConfigService
-    ) { }
+    ) { 
+
+
+    }
 
     async recomendacion_query(query: string) {
         const requestBody = {

@@ -4,25 +4,31 @@ import { Hallazgos } from "./conclusion_first_file.dto"
 
 export class ConclusionNoFirstDto {
 
-    @IsString() component_sub: string
-    @IsString() component_main: string
+    @IsOptional() @IsString() component_sub?: string
+    @IsOptional() @IsString() component_main?: string
+    @IsOptional() @IsString({ each: true }) notas?: string[]
 
-    @IsString()
     @IsOptional()
-    modelo_motor: string
-
     @IsString()
-    @IsOptional()
-    modelo_maquina: string
+    modelo_motor?: string
 
-    @IsString() tipo_reparacion: string
-    @IsString() smcs: string
+    @IsOptional()
+    @IsString()
+    modelo_maquina?: string
+
+    @IsOptional()
+    @IsString()
+    tipo_reparacion?: string
+
+    @IsOptional()
+    @IsString()
+    smcs?: string
 
     @IsArray() // Indica que debe ser un array
     @ValidateNested({ each: true }) // Valida cada elemento del array
     @Type(() => Hallazgos) // 💡 Usar Type para decirle a class-transformer qué objeto contiene el array
     hallazgos: Hallazgos[] // 💡 El tipo de TypeScript debe ser un array
 
-    @IsString() user_conclusion: string
+    @IsString() @IsOptional() user_conclusion?: string
 
 }

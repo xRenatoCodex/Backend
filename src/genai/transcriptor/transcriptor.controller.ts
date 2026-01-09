@@ -1,6 +1,7 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { TranscribeDTO } from './dtos/transcribe.dto';
 import { TranscriptorService } from './transcriptor.service';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('genai/transcriptor')
 export class TranscriptorController {
@@ -8,8 +9,9 @@ export class TranscriptorController {
     constructor(private readonly transcriptorService: TranscriptorService) { }
 
     @Post('transcribe/reusabilidad')
-    async transcribeAudio(@Body() body: TranscribeDTO) {
-        const text = await this.transcriptorService.transcribeAudio(body.audioBase64, body.mimeType);
+    @UseInterceptors(FileInterceptor('audio'))
+    async transcribeAudio(@UploadedFile() audio: Express.Multer.File) {
+        const text = await this.transcriptorService.transcribeAudio(audio.buffer.toString('base64'));
         return this.transcriptorService.transcript_reusabilidad(text)
     }
 

@@ -6,11 +6,17 @@ import { credential } from 'firebase-admin';
 
 @Injectable()
 export class FirebaseAuthService {
-   
+
     constructor(private configService: ConfigService) {
 
         if (!admin.apps.length) {
-            admin.initializeApp();
+            admin.initializeApp({
+                credential: credential.cert({
+                    projectId: this.configService.get<string>('FIREBASE_PROJECTID'),
+                    clientEmail: this.configService.get<string>('FIREBASE_EMAIL'),
+                    privateKey: this.configService.get<string>('FIREBASE_PRIVATEKEY')?.replace(/\\n/g, '\n'),
+                })
+            });
         }
     }
 
